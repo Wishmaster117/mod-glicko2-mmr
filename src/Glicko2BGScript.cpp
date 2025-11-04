@@ -18,13 +18,16 @@
 #include "ScriptMgr.h"
 #include "Player.h"
 #include "Battleground.h"
+#include "BattlegroundQueue.h"
 #include "Config.h"
 #include "Glicko2PlayerStorage.h"
 #include "BattlegroundMMR.h"
 #include "Log.h"
+#include "GameTime.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
+#include <cmath>
 
 struct MatchTracker
 {
@@ -35,11 +38,63 @@ struct MatchTracker
     time_t startTime = 0;
 };
 
+/// @brief Tracks players in a queue's selection pool for MMR matching
+struct PoolTracker
+{
+    std::unordered_set<ObjectGuid> players;
+    time_t lastUpdateTime = 0;
+
+    void AddGroup(GroupQueueInfo* group)
+    {
+        for (ObjectGuid guid : group->Players)
+            players.insert(guid);
+        lastUpdateTime = time(nullptr);
+    }
+
+    void Clear()
+    {
+        players.clear();
+        lastUpdateTime = 0;
+    }
+
+    bool IsStale(time_t now, uint32 maxAgeSeconds = 300) const
+    {
+        return (now - lastUpdateTime) > maxAgeSeconds;
+    }
+};
+
+/// @brief Key for tracking selection pools per queue/bracket
+struct PoolKey
+{
+    BattlegroundQueue* queue;
+    BattlegroundBracketId bracketId;
+
+    bool operator==(PoolKey const& other) const
+    {
+        return queue == other.queue && bracketId == other.bracketId;
+    }
+};
+
+namespace std
+{
+    template<>
+    struct hash<PoolKey>
+    {
+        size_t operator()(PoolKey const& key) const
+        {
+            return hash<void*>()(key.queue) ^ hash<uint8>()(key.bracketId);
+        }
+    };
+}
+
 /// @brief Handles battleground rating updates using Glicko-2 algorithm
 class Glicko2BGScript : public AllBattlegroundScript
 {
     std::unordered_map<uint32, MatchTracker> _activeMatches;
     mutable std::mutex _matchMutex;
+
+    std::unordered_map<PoolKey, PoolTracker> _poolTracking;
+    mutable std::mutex _poolMutex;
 
 public:
     Glicko2BGScript() : AllBattlegroundScript("Glicko2BGScript")
@@ -135,6 +190,89 @@ public:
             player->GetName(), bg->GetInstanceID(), bg->GetStatus());
     }
 
+    bool GetPlayerMatchmakingRating(ObjectGuid playerGuid, BattlegroundTypeId /*bgTypeId*/, float& outRating) override
+    {
+        if (!sConfigMgr->GetOption<bool>("Glicko2.Enabled", true))
+            return false;
+
+        if (!sConfigMgr->GetOption<bool>("Glicko2.Matchmaking.Enabled", true))
+            return false;
+
+        BattlegroundRatingData data = sGlicko2Storage->GetRating(playerGuid);
+        if (data.loaded || data.matchesPlayed > 0)
+        {
+            outRating = data.rating;
+            return true;
+        }
+
+        outRating = sConfigMgr->GetOption<float>("Glicko2.InitialRating", 1500.0f);
+        return true;
+    }
+
+    bool CanAddGroupToMatchingPool(BattlegroundQueue* queue, GroupQueueInfo* group, uint32 poolPlayerCount,
+                                   Battleground* /*bg*/, BattlegroundBracketId bracketId) override
+    {
+        if (!sConfigMgr->GetOption<bool>("Glicko2.Enabled", true))
+            return true;
+
+        if (!sConfigMgr->GetOption<bool>("Glicko2.Matchmaking.Enabled", true))
+            return true;
+
+        if (!group || group->Players.empty())
+            return true;
+
+        std::lock_guard lock(_poolMutex);
+
+        // Cleanup stale pool tracking
+        CleanupStalePools();
+
+        PoolKey key{queue, bracketId};
+        PoolTracker& pool = _poolTracking[key];
+
+        // If pool is empty (starting fresh), clear tracking and allow first group
+        if (poolPlayerCount == 0)
+        {
+            pool.Clear();
+            pool.AddGroup(group);
+            LOG_DEBUG("module.glicko2", "[Glicko2 Matchmaking] First group added to pool, MMR: {:.1f}",
+                CalculateGroupAverageMMR(group));
+            return true;
+        }
+
+        // Calculate average MMR of the group being considered
+        float groupAvgMMR = CalculateGroupAverageMMR(group);
+
+        // Calculate average MMR of players already in pool
+        float poolAvgMMR = CalculatePoolAverageMMR(pool.players);
+
+        // Calculate how long this group has been in queue
+        uint32 queueTimeMS = GameTime::GetGameTimeMS().count() - group->JoinTime;
+        uint32 queueTimeSec = queueTimeMS / 1000;
+
+        // Get relaxation settings
+        float initialRange = sConfigMgr->GetOption<float>("Glicko2.Matchmaking.InitialRange", 200.0f);
+        float maxRange = sConfigMgr->GetOption<float>("Glicko2.Matchmaking.MaxRange", 1000.0f);
+        float relaxationRate = sConfigMgr->GetOption<float>("Glicko2.Matchmaking.RelaxationRate", 10.0f);
+
+        // Calculate current MMR range with time-based relaxation
+        float currentRange = initialRange + (relaxationRate * queueTimeSec);
+        currentRange = std::min(currentRange, maxRange);
+
+        float mmrDiff = std::abs(groupAvgMMR - poolAvgMMR);
+        bool allowed = mmrDiff <= currentRange;
+
+        LOG_DEBUG("module.glicko2", "[Glicko2 Matchmaking] Group MMR: {:.1f}, Pool MMR: {:.1f}, Diff: {:.1f}, Range: {:.1f}, Queue: {}s - {}",
+            groupAvgMMR, poolAvgMMR, mmrDiff, currentRange, queueTimeSec, allowed ? "ALLOWED" : "REJECTED");
+
+        // If allowed, track this group in the pool
+        if (allowed)
+        {
+            pool.AddGroup(group);
+        }
+
+        return allowed;
+    }
+
 private:
     void ProcessMatchRatings(Battleground* bg, MatchTracker& match)
     {
@@ -174,6 +312,43 @@ private:
         }
 
         return totalMMR / static_cast<float>(players.size());
+    }
+
+    float CalculatePoolAverageMMR(std::unordered_set<ObjectGuid> const& players)
+    {
+        return CalculateAverageMMR(players);
+    }
+
+    void CleanupStalePools()
+    {
+        time_t now = time(nullptr);
+        for (auto it = _poolTracking.begin(); it != _poolTracking.end();)
+        {
+            if (it->second.IsStale(now))
+            {
+                LOG_DEBUG("module.glicko2", "[Glicko2 Matchmaking] Cleaning up stale pool");
+                it = _poolTracking.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    float CalculateGroupAverageMMR(GroupQueueInfo* group)
+    {
+        if (!group || group->Players.empty())
+            return sConfigMgr->GetOption<float>("Glicko2.InitialRating", 1500.0f);
+
+        float totalMMR = 0.0f;
+        for (ObjectGuid guid : group->Players)
+        {
+            BattlegroundRatingData data = sGlicko2Storage->GetRating(guid);
+            totalMMR += data.rating;
+        }
+
+        return totalMMR / static_cast<float>(group->Players.size());
     }
 
     float CalculateAverageRD(std::unordered_set<ObjectGuid> const& players)
