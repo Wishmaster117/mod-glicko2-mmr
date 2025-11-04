@@ -109,3 +109,98 @@ Glicko2.Matchmaking.RelaxationRate = 10.0
 Glicko2.Matchmaking.RelaxationInterval = 5
 
 ###################################################################################################
+# ARENA GLICKO-2 SYSTEM CONFIGURATION
+###################################################################################################
+
+#
+#    Glicko2.Arena.Enabled
+#        Description: Enable Glicko-2 ratings for arenas (replaces standard arena ratings)
+#                     Provides separate ratings for each bracket (2v2, 3v3, 5v5, skirmish)
+#        Default:     1 (enabled)
+#
+
+Glicko2.Arena.Enabled = 1
+
+#
+#    Glicko2.Arena.InitialRating
+#        Description: Starting rating for new arena players
+#        Default:     1500.0
+#
+
+Glicko2.Arena.InitialRating = 1500.0
+
+#
+#    Glicko2.Arena.InitialRatingDeviation
+#        Description: Starting rating uncertainty (RD) for new arena players
+#        Default:     350.0
+#
+
+Glicko2.Arena.InitialRatingDeviation = 350.0
+
+#
+#    Glicko2.Arena.InitialVolatility
+#        Description: Starting volatility for new arena players
+#        Default:     0.06
+#
+
+Glicko2.Arena.InitialVolatility = 0.06
+
+#
+#    Glicko2.Arena.Tau
+#        Description: System volatility constraint for arenas
+#        Default:     0.5
+#
+
+Glicko2.Arena.Tau = 0.5
+
+#
+#    Glicko2.Arena.SkirmishSeparateRating
+#        Description: Use separate rating for skirmishes vs rated arenas
+#                     If enabled, skirmishes have their own rating pool
+#                     If disabled, skirmishes use same rating as rated for that bracket size
+#        Default:     1 (enabled)
+#
+
+Glicko2.Arena.SkirmishSeparateRating = 1
+
+###################################################################################################
+# ARENA MATCHMAKING - PER BRACKET CONFIGURATION
+###################################################################################################
+
+#
+#    Glicko2.Arena.2v2.Matchmaking.*
+#        Description: Matchmaking settings for 2v2 rated arenas
+#
+
+Glicko2.Arena.2v2.Matchmaking.InitialRange = 150.0
+Glicko2.Arena.2v2.Matchmaking.MaxRange = 800.0
+Glicko2.Arena.2v2.Matchmaking.RelaxationRate = 15.0
+
+#
+#    Glicko2.Arena.3v3.Matchmaking.*
+#        Description: Matchmaking settings for 3v3 rated arenas
+#
+
+Glicko2.Arena.3v3.Matchmaking.InitialRange = 200.0
+Glicko2.Arena.3v3.Matchmaking.MaxRange = 1000.0
+Glicko2.Arena.3v3.Matchmaking.RelaxationRate = 12.0
+
+#
+#    Glicko2.Arena.5v5.Matchmaking.*
+#        Description: Matchmaking settings for 5v5 rated arenas
+#
+
+Glicko2.Arena.5v5.Matchmaking.InitialRange = 250.0
+Glicko2.Arena.5v5.Matchmaking.MaxRange = 1200.0
+Glicko2.Arena.5v5.Matchmaking.RelaxationRate = 10.0
+
+#
+#    Glicko2.Arena.Skirmish.Matchmaking.*
+#        Description: Matchmaking settings for arena skirmishes (more lenient)
+#
+
+Glicko2.Arena.Skirmish.Matchmaking.InitialRange = 300.0
+Glicko2.Arena.Skirmish.Matchmaking.MaxRange = 1500.0
+Glicko2.Arena.Skirmish.Matchmaking.RelaxationRate = 20.0
+
+###################################################################################################
