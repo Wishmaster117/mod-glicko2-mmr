@@ -1,0 +1,64 @@
+###################################################################################################
+#   /$$$$$$  /$$ /$$           /$$                  /$$$$$$                                       #
+#  /$$__  $$| $$|__/          | $$                 /$$__  $$                                      #
+# | $$  \__/| $$ /$$  /$$$$$$$| $$   /$$  /$$$$$$ |__/  \ $$                                     #
+# | $$ /$$$$| $$| $$ /$$_____/| $$  /$$/ /$$__  $$  /$$$$$$/                                     #
+# | $$|_  $$| $$| $$| $$      | $$$$$$/ | $$  \ $$ /$$____/                                      #
+# | $$  \ $$| $$| $$| $$      | $$_  $$ | $$  | $$| $$                                           #
+# |  $$$$$$/| $$| $$|  $$$$$$$| $$ \  $$|  $$$$$$/| $$$$$$$$                                     #
+#  \______/ |__/|__/ \_______/|__/  \__/ \______/ |________/                                     #
+#                                                                                                 #
+#                          MMR SYSTEM - Module Configuration                                     #
+###################################################################################################
+
+[worldserver]
+
+###################################################################################################
+# GLICKO-2 MMR SYSTEM CONFIGURATION
+###################################################################################################
+
+#
+#    Glicko2.Enabled
+#        Description: Enable or disable the Glicko-2 MMR system for battlegrounds
+#        Default:     1 (enabled)
+#
+
+Glicko2.Enabled = 1
+
+#
+#    Glicko2.InitialRating
+#        Description: Starting rating for new players
+#        Default:     1500.0
+#
+
+Glicko2.InitialRating = 1500.0
+
+#
+#    Glicko2.InitialRatingDeviation
+#        Description: Starting rating uncertainty (RD) for new players
+#                     Higher values mean more uncertainty about the player's skill
+#        Default:     350.0
+#
+
+Glicko2.InitialRatingDeviation = 350.0
+
+#
+#    Glicko2.InitialVolatility
+#        Description: Starting volatility for new players
+#                     Measures consistency of performance
+#        Default:     0.06
+#
+
+Glicko2.InitialVolatility = 0.06
+
+#
+#    Glicko2.Tau
+#        Description: System volatility constraint parameter
+#                     Lower values = more conservative rating changes
+#                     Higher values = more volatile rating changes
+#        Default:     0.5
+#
+
+Glicko2.Tau = 0.5
+
+###################################################################################################
