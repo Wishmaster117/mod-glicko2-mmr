@@ -16,7 +16,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           git cmake make gcc g++ clang \
-          libmysqlclient-dev libace-6.* libace-dev \
+          libmysqlclient-dev libace-dev \
           libssl-dev libbz2-dev libreadline-dev \
           libncurses-dev mysql-server libboost-all-dev
 
