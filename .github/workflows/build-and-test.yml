@@ -1,0 +1,63 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ master, feature/* ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git cmake make gcc g++ clang \
+          libmysqlclient-dev libace-6.* libace-dev \
+          libssl-dev libbz2-dev libreadline-dev \
+          libncurses-dev mysql-server libboost-all-dev
+
+    - name: Checkout AzerothCore
+      uses: actions/checkout@v4
+      with:
+        repository: azerothcore/azerothcore-wotlk
+        ref: master
+        path: azerothcore
+
+    - name: Checkout module
+      uses: actions/checkout@v4
+      with:
+        path: azerothcore/modules/mod-glicko2-mmr
+
+    - name: Configure CMake
+      run: |
+        cd azerothcore
+        mkdir build
+        cd build
+        cmake ../ \
+          -DCMAKE_INSTALL_PREFIX=$HOME/azerothcore-install \
+          -DCMAKE_C_COMPILER=/usr/bin/clang \
+          -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
+          -DWITH_WARNINGS=1 \
+          -DTOOLS_BUILD=none \
+          -DSCRIPTS=static \
+          -DMODULES=static \
+          -DBUILD_TESTING=ON
+
+    - name: Build unit tests
+      run: |
+        cd azerothcore/build
+        cmake --build . --target unit_tests -j $(nproc)
+
+    - name: Run tests
+      run: |
+        cd azerothcore/build
+        ./bin/unit_tests --gtest_filter="*Glicko2*:*ArenaMMR*:*ArenaRating*:*BattlegroundMMR*:*ArenaHooks*"
+
+    - name: Build worldserver (optional - verify module compiles with server)
+      run: |
+        cd azerothcore/build
+        cmake --build . --target worldserver -j $(nproc)
