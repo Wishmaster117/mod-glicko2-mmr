@@ -21,6 +21,7 @@ void AddGlicko2PlayerScripts();
 void AddGlicko2BGScripts();
 void AddGlicko2CommandScripts();
 void AddGlicko2WorldScripts();
+void AddGlicko2ArenaHookScripts();
 
 void Addmod_glicko2_mmrScripts()
 {
@@ -29,5 +30,6 @@ void Addmod_glicko2_mmrScripts()
     AddGlicko2PlayerScripts();
     AddGlicko2BGScripts();
     AddGlicko2CommandScripts();
+    AddGlicko2ArenaHookScripts();
     LOG_INFO("server.loading", ">> Module mod-glicko2-mmr loaded successfully!");
 }
