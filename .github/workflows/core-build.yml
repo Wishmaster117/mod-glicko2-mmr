@@ -30,7 +30,7 @@ jobs:
         working-directory: azerothcore
         run: |
           git fetch origin pull/23543/head:pr-23543
-          git merge --no-edit pr-23543
+          git merge --allow-unrelated-histories --no-edit pr-23543
 
       - name: Checkout module
         uses: actions/checkout@v3
